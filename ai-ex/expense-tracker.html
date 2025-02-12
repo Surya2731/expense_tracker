@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2563EB, #1E40AF);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+            width: 600px;
+            color: black;
+        }
+        h2 { text-align: center; color: #333; }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        button { background: #007bff; color: white; cursor: pointer; transition: background 0.3s; }
+        button:hover { background: #0056b3; }
+        .expense-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .expense-table th, .expense-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .expense-table th { background: #007bff; color: white; }
+        .delete-btn {
+            background: #ff4757; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 5px;
+        }
+        .delete-btn:hover { background: #e84118; }
+        .summary { margin-top: 15px; font-size: 18px; font-weight: bold; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Smart Expense Tracker</h2>
+
+        <!-- Salary Input -->
+        <input type="number" id="salary" placeholder="Enter Total Salary">
+        <button onclick="addSalary()">Add Salary</button>
+        <p class="summary" id="salaryDisplay">Total Salary: $0</p>
+
+        <!-- Expense Input -->
+        <input type="text" id="expenseDesc" placeholder="Expense Description">
+        <input type="number" id="expenseAmount" placeholder="Amount">
+        <input type="date" id="expenseDate">
+        <button onclick="addExpense()">Add Expense</button>
+
+        <button class="voice-btn" onclick="startVoiceInput()">🎤 Voice Log</button>
+
+        
+        <!-- Import File Button -->
+        <input type="file" id="fileInput" accept=".pdf,.html" style="display: none;" onchange="handleFile(event)">
+        <button onclick="document.getElementById('fileInput').click()">Import File</button>
+
+        <!-- Display Totals -->
+        <p class="summary" id="totalExpense">Total Expenses: $0</p>
+
+        
+
+        <!-- Expenses Table -->
+        <table class="expense-table" id="expenseTable">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Amount ($)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+        let totalSalary = parseFloat(localStorage.getItem("salary")) || 0;
+
+        function renderExpenses() {
+            let tableBody = document.getElementById("expenseTable").querySelector("tbody");
+            tableBody.innerHTML = "";
+            let totalExpense = 0;
+
+            expenses.forEach((exp, index) => {
+                totalExpense += exp.amount;
+                let row = `<tr>
+                    <td>${exp.desc}</td>
+                    <td>${exp.date}</td>
+                    <td>$${exp.amount.toFixed(2)}</td>
+                    <td><button class='delete-btn' onclick='deleteExpense(${index})'>Delete</button></td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+
+            document.getElementById("totalExpense").textContent = `Total Expenses: $${totalExpense.toFixed(2)}`;
+        }
+
+        function addExpense() {
+            let desc = document.getElementById("expenseDesc").value.trim();
+            let amount = parseFloat(document.getElementById("expenseAmount").value);
+            let date = document.getElementById("expenseDate").value;
+
+            if (!desc || isNaN(amount) || amount <= 0 || !date) {
+                alert("Please enter valid expense details.");
+                return;
+            }
+
+            expenses.push({ desc, date, amount });
+            localStorage.setItem("expenses", JSON.stringify(expenses));
+            renderExpenses();
+        }
+
+        function deleteExpense(index) {
+            expenses.splice(index, 1);
+            localStorage.setItem("expenses", JSON.stringify(expenses));
+            renderExpenses();
+        }
+        
+        function startVoiceInput() {
+            if (!('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+                alert("Speech Recognition is not supported in your browser.");
+                return;
+            }
+
+            let recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.onresult = function(event) {
+                let voiceText = event.results[0][0].transcript;
+                let match = voiceText.match(/(\d+)\sfor\s(.+)/i);
+
+                if (match) {
+                    let amount = parseFloat(match[1]);
+                    let desc = match[2].trim();
+                    if (!isNaN(amount) && desc) {
+                        expenses.push({ desc, date: new Date().toLocaleDateString(), amount });
+                        localStorage.setItem("expenses", JSON.stringify(expenses));
+                        renderExpenses();
+                        updateCharts();
+                    }
+                } else {
+                    alert("Please say the amount followed by 'for' and the description (e.g., '50 for groceries').");
+                }
+            };
+
+            recognition.start();
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            renderExpenses();
+            updateCharts();
+            document.getElementById("salaryDisplay").textContent = `Total Salary: $${salary}`;
+        });
+
+        function addSalary() {
+            let salary = parseFloat(document.getElementById("salary").value);
+            if (isNaN(salary) || salary <= 0) {
+                alert("Please enter a valid salary.");
+                return;
+            }
+            totalSalary = salary;
+            localStorage.setItem("salary", totalSalary);
+            document.getElementById("salaryDisplay").textContent = `Total Salary: $${totalSalary.toFixed(2)}`;
+        }
+
+    function handleFile(event) {
+    const file = event.target.files[0];
+    if (file && file.type === "application/pdf") {
+        const fileReader = new FileReader();
+        fileReader.onload = function () {
+            const typedArray = new Uint8Array(this.result);
+            pdfjsLib.getDocument(typedArray).promise.then(pdf => {
+                let totalPages = pdf.numPages;
+                let promises = [];
+                
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    promises.push(pdf.getPage(pageNum).then(page => page.getTextContent()));
+                }
+
+                Promise.all(promises).then(pagesText => {
+                    let extractedExpenses = [];
+
+                    pagesText.forEach(textContent => {
+                        let lines = {};
+                        
+                        // Group text into lines based on y-coordinate
+                        textContent.items.forEach(item => {
+                            let y = Math.round(item.transform[5]); // Get y-position of text
+                            if (!lines[y]) {
+                                lines[y] = [];
+                            }
+                            lines[y].push(item.str);
+                        });
+
+                        // Process each line as a full entry
+                        Object.values(lines).forEach(lineArray => {
+                            let line = lineArray.join(" "); // Join words to reconstruct full line
+                            let match = line.match(/([A-Za-z\s]+)\s+(\d+\.?\d*)/);
+                            if (match) {
+                                let category = match[1].trim();
+                                let amount = parseFloat(match[2]);
+                                extractedExpenses.push({ desc: category, amount });
+                            }
+                        });
+                    });
+
+                    if (extractedExpenses.length > 0) {
+                        addExpensesFromFile(extractedExpenses);
+                    }
+                });
+            });
+        };
+        fileReader.readAsArrayBuffer(file);
+    }
+}
+
+function addExpensesFromFile(expenseList) {
+    let date = new Date().toISOString().split('T')[0];
+
+    expenseList.forEach(expense => {
+        expenses.push({ desc: expense.desc, date, amount: expense.amount });
+    });
+
+    localStorage.setItem("expenses", JSON.stringify(expenses));
+    renderExpenses();
+}
+
+document.getElementById("salaryDisplay").textContent = `Total Salary: $${totalSalary.toFixed(2)}`;
+renderExpenses();
+
+    </script>
+</body>
+</html>
