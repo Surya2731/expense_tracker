@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Transactions</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2563EB, #1E40AF);
+            margin: 0;
+            padding: 20px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        .transactions-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+            max-width: 900px;
+            width: 100%;
+            color: black;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background: #007bff;
+            color: white;
+            font-size: 16px;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .delete-btn:hover {
+            background: #e84118;
+        }
+
+        .back-btn {
+            background: #ff4757;
+            padding: 10px 20px;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
+    <h2>All Transactions</h2>
+
+    <div class="transactions-container">
+        <table id="transactionsTable">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Amount ($)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+   <script>
+    let expenses = [];
+
+async function fetchExpenses() {
+    try {
+        const response = await fetch("http://localhost:5000/api/expenses");
+        if (!response.ok) throw new Error("Failed to fetch expenses");
+        expenses = await response.json();
+        populateTable();
+    } catch (error) {
+        console.error("Error fetching expenses:", error);
+    }
+}
+
+function populateTable() {
+    let tbody = document.querySelector("#transactionsTable tbody");
+    tbody.innerHTML = "";
+
+    expenses.forEach(exp => {
+        let row = `<tr>
+            <td>${exp.desc}</td>
+            <td>${exp.date}</td>
+            <td>$${exp.amount}</td>
+            <td><button class="delete-btn" onclick="deleteTransaction('${exp._id}')">Delete</button></td>
+        </tr>`;
+        tbody.innerHTML += row;
+    });
+}
+
+async function deleteTransaction(id) {
+    try {
+        const response = await fetch(`http://localhost:5000/api/expenses/${id}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Failed to delete transaction");
+        fetchExpenses(); // Reload transactions after deletion
+    } catch (error) {
+        console.error("Error deleting transaction:", error);
+    }
+}
+
+// Fetch expenses when the page loads
+document.addEventListener("DOMContentLoaded", fetchExpenses);
+   </script>
+
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saving Forecasting</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #1E3A8A, #2563EB);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 700px;
+            color: black;
+        }
+        h2 {
+            color: #2563EB;
+        }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #2563EB;
+            color: white;
+        }
+        .delete-btn {
+            background: red;
+            border: none;
+            color: white;
+            padding: 3px 8px;
+            font-size: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .chart-container {
+            margin-top: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        canvas {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Set Your Saving Goals</h2>
+        <input type="text" id="goalDesc" placeholder="Goal (e.g., Car, Bike, PlayStation)">
+        <input type="number" id="goalAmount" placeholder="Enter Amount (₹)">
+        <button onclick="addSavingGoal()">Add Saving Goal</button>
+
+        <div class="table-container">
+            <h3>Saving Forecast</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Goal</th>
+                        <th>Total Amount (₹)</th>
+                        <th>Months Required</th>
+                        <th>Amount Needed Per Month (₹)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="forecastTable"></tbody>
+            </table>
+        </div>
+
+        <div class="chart-container">
+            <h3>Saving Progress</h3>
+            <canvas id="savingsChart"></canvas>
+        </div>
+
+        <style>
+            .chart-container {
+                width: 600px;  /* Fixed width */
+                height: 400px; /* Fixed height */
+                margin: auto;  /* Center the chart */
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            #savingsChart {
+                width: 100% !important;
+                height: 100% !important;
+            }
+        </style>
+    </div>
+
+    <script>
+        // Sample data for months and savings amount
+        const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; // Example months
+        const savingsAmount = [5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000, 60000]; // Example savings
+    
+        const ctx = document.getElementById('savingsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Savings Amount',
+                    data: savingsAmount,
+                    borderColor: 'blue',
+                    backgroundColor: 'rgba(0, 0, 255, 0.2)',
+                    borderWidth: 2,
+                    pointRadius: 5,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Months'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Savings Amount (₹)'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script>
+        function addSavingGoal() {
+            let goalDesc = document.getElementById("goalDesc").value;
+            let goalAmount = parseFloat(document.getElementById("goalAmount").value);
+
+            if (!goalDesc || isNaN(goalAmount) || goalAmount <= 0) {
+                alert("Please enter a valid goal and amount.");
+                return;
+            }
+
+            let salary = parseFloat(localStorage.getItem("salary")) || 0;
+            let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+            let totalExpense = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+            let monthlySavings = salary - totalExpense;
+
+            if (monthlySavings <= 0) {
+                alert("Not enough savings to achieve the goal.");
+                return;
+            }
+
+            let monthsRequired = Math.ceil(goalAmount / monthlySavings);
+            let amountPerMonth = (goalAmount / monthsRequired).toFixed(2);
+
+            let goals = JSON.parse(localStorage.getItem("savingGoals")) || [];
+            goals.push({ desc: goalDesc, amount: goalAmount, months: monthsRequired, monthlyAmount: amountPerMonth });
+            localStorage.setItem("savingGoals", JSON.stringify(goals));
+
+            displayForecastTable();
+            updateChart();
+            document.getElementById("goalDesc").value = "";
+            document.getElementById("goalAmount").value = "";
+        }
+
+        function displayForecastTable() {
+            let forecastTable = document.getElementById("forecastTable");
+            forecastTable.innerHTML = "";
+            let goals = JSON.parse(localStorage.getItem("savingGoals")) || [];
+
+            goals.forEach((goal, index) => {
+                let row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${goal.desc}</td>
+                    <td>₹${goal.amount}</td>
+                    <td>${goal.months}</td>
+                    <td>₹${goal.monthlyAmount}</td>
+                    <td><button class="delete-btn" onclick="deleteGoal(${index})">X</button></td>
+                `;
+                forecastTable.appendChild(row);
+            });
+        }
+
+        function deleteGoal(index) {
+            let goals = JSON.parse(localStorage.getItem("savingGoals")) || [];
+            goals.splice(index, 1);
+            localStorage.setItem("savingGoals", JSON.stringify(goals));
+            displayForecastTable();
+            updateChart();
+        }
+
+        function updateChart() {
+            let ctx = document.getElementById("savingsChart").getContext("2d");
+            let goals = JSON.parse(localStorage.getItem("savingGoals")) || [];
+
+            let labels = goals.map(goal => goal.desc);
+            let data = goals.map(goal => goal.months);
+
+            if (window.savingsChart) {
+                window.savingsChart.destroy();
+            }
+
+            window.savingsChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Months Required",
+                        data: data,
+                        backgroundColor: "#007bff",
+                        borderColor: "#0056b3",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            displayForecastTable();
+            updateChart();
+        });
+    </script>
+</body>
+</html>

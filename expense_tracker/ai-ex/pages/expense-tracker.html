@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2563EB, #1E40AF);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            height: 100vh;
+            color: white;
+        }
+        .container, .charts-container {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+            width: 400px;
+            color: black;
+        }
+        .charts-container {
+            width: 600px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 10px;
+        }
+        h2 { text-align: center; color: #333; }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        button { background: #007bff; color: white; cursor: pointer; transition: background 0.3s; }
+        button:hover { background: #0056b3; }
+        .expense-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .expense-table th, .expense-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .expense-table th { background: #007bff; color: white; }
+        canvas { width: 100%; height: 200px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Smart Expense Tracker</h2>
+        <input type="number" id="salary" placeholder="Enter Salary">
+        <button onclick="addSalary()">Add Salary</button>
+        <input type="text" id="expenseDesc" placeholder="Expense Description">
+        <input type="number" id="expenseAmount" placeholder="Amount">
+        <input type="date" id="expenseDate">
+        <button onclick="addExpense()">Add Expense</button>
+        <button onclick="startVoiceInput()">🎤 Voice Log</button>
+        <!-- Import File Button -->
+        <input type="file" id="fileInput" accept=".pdf,.html" style="display: none;" onchange="handleFile(event)">
+        <button onclick="document.getElementById('fileInput').click()">Import File</button>
+        <p class="summary" id="salaryDisplay">Total Salary: $0</p>
+        <p class="summary" id="totalExpense">Total Expenses: $0</p>
+        <table class="expense-table" id="expenseTable">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Amount ($)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <div class="charts-container">
+        <canvas id="expensePieChart"></canvas>
+        <canvas id="expenseDoughnutChart"></canvas>
+        <canvas id="expenseBarChart"></canvas>
+        <canvas id="expenseLineChart"></canvas>
+    </div>
+    <script>
+        let expenses = JSON.parse(localStorage.getItem("expenses")) || [];
+        let salary = parseFloat(localStorage.getItem("salary")) || 0;
+        let pieChart, doughnutChart, barChart, lineChart;
+
+        function addSalary() {
+            salary = parseFloat(document.getElementById('salary').value) || 0;
+            localStorage.setItem("salary", salary);
+            document.getElementById("salaryDisplay").textContent = `Total Salary: $${salary}`;
+        }
+
+        async function addExpense() {
+            let descInput = document.getElementById('expenseDesc');
+            let amountInput = document.getElementById('expenseAmount');
+            let dateInput = document.getElementById('expenseDate');
+            let desc = descInput.value;
+            let amount = parseFloat(amountInput.value);
+            let date = dateInput.value || new Date().toISOString().split('T')[0];
+
+            if (desc && amount) {              
+
+                let totalExpense = expenses.reduce((sum, exp) => sum + exp.amount, 0) + amount;
+                if (totalExpense > salary) {
+                    alert("Expenses are exceeding from the given salary");
+                    return;
+                }
+
+                const response = await fetch("http://localhost:5000/api/expenses", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ desc, amount, date })
+                });
+        
+                if (response.ok) {
+                    alert("Expense added successfully!");             
+                    renderExpenses();
+                    descInput.value = "";
+                    amountInput.value = "";
+                    dateInput.value = "";
+                } else {
+                    alert("Error adding expense");
+                }
+            }
+        }
+
+        async function deleteExpense(id) {
+
+            const response = await fetch(`http://localhost:5000/api/expenses/${id}`, { method: "DELETE" });
+
+            if (response.ok) {
+                alert("Expense deleted");
+                renderExpenses(); // Reload data after deletion
+            } else {
+                alert("Failed to delete expense");
+            }
+        }
+
+        async function renderExpenses() {
+
+            const response = await fetch("http://localhost:5000/api/expenses");
+            const expenses = await response.json();
+
+            let tableBody = document.getElementById("expenseTable").querySelector("tbody");
+            tableBody.innerHTML = "";
+            let totalExpense = 0;
+            expenses.forEach(exp => {
+                totalExpense += exp.amount;
+                let row = `<tr>
+                    <td>${exp.desc}</td>
+                    <td>${exp.date}</td>
+                    <td>$${exp.amount}</td>
+                    <td><button class='delete-btn' onclick='deleteExpense("${exp._id}")'>Delete</button></td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+            document.getElementById("totalExpense").textContent = `Total Expenses: $${totalExpense}`;
+            updateCharts(expenses);
+        }
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file && file.type === "application/pdf") {
+                const fileReader = new FileReader();
+                fileReader.onload = function () {
+                    const typedArray = new Uint8Array(this.result);
+                    pdfjsLib.getDocument(typedArray).promise.then(pdf => {
+                        let totalPages = pdf.numPages;
+                        let promises = [];
+        
+                        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                            promises.push(pdf.getPage(pageNum).then(page => page.getTextContent()));
+                        }
+        
+                        Promise.all(promises).then(pagesText => {
+                            let extractedExpenses = [];
+        
+                            pagesText.forEach(textContent => {
+                                let lines = {};
+                                
+                                // Group text into lines based on y-coordinate
+                                textContent.items.forEach(item => {
+                                    let y = Math.round(item.transform[5]); // Get y-position of text
+                                    if (!lines[y]) {
+                                        lines[y] = [];
+                                    }
+                                    lines[y].push(item.str);
+                                });
+        
+                                // Process each line as a full entry
+                                Object.values(lines).forEach(lineArray => {
+                                    let line = lineArray.join(" "); // Join words to reconstruct full line
+                                    let match = line.match(/([A-Za-z\s]+)\s+(\d+\.?\d*)/);
+                                    if (match) {
+                                        let category = match[1].trim();
+                                        let amount = parseFloat(match[2]);
+                                        extractedExpenses.push({ desc: category, amount });
+                                    }
+                                });
+                            });
+        
+                            console.log("Extracted Expenses:", extractedExpenses); // ✅ Check extracted data
+                            if (extractedExpenses.length > 0) {
+                                addExpensesFromFile(extractedExpenses); // ✅ Send extracted data to MongoDB
+                            }
+                        });
+                    });
+                };
+                fileReader.readAsArrayBuffer(file);
+            }
+        }
+        
+        
+        async function addExpensesFromFile(expenseList) {
+            let date = new Date().toISOString().split('T')[0];
+        
+            let formattedExpenses = expenseList.map(expense => ({
+                desc: expense.desc,
+                amount: expense.amount,
+                date: date
+            }));
+
+            console.log("Sending Expenses to Backend:", formattedExpenses); // ✅ Debugging
+        
+            // Send extracted expenses to backend
+            const response = await fetch("http://localhost:5000/api/expenses", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expenses: formattedExpenses }) // ✅ Uses bulk upload API
+            });
+        
+            if (response.ok) {
+                alert("Expenses imported successfully!");
+                renderExpenses(); // ✅ Reload from MongoDB after import
+            } else {
+                alert("Error importing expenses");
+            }
+        }
+        
+
+        function updateCharts(expenses) {
+            let ctx1 = document.getElementById('expensePieChart').getContext('2d');
+            let ctx2 = document.getElementById('expenseDoughnutChart').getContext('2d');
+            let ctx3 = document.getElementById('expenseBarChart').getContext('2d');
+            let ctx4 = document.getElementById('expenseLineChart').getContext('2d');
+            let labels = expenses.map(exp => exp.desc);
+            let data = expenses.map(exp => exp.amount);
+
+            if (pieChart) pieChart.destroy();
+            if (doughnutChart) doughnutChart.destroy();
+            if (barChart) barChart.destroy();
+            if (lineChart) lineChart.destroy();
+            
+            pieChart = new Chart(ctx1, { type: 'pie', data: { labels, datasets: [{ data }] } });
+            // doughnutChart = new Chart(ctx2, { type: 'doughnut', data: { labels, datasets: [{ data }] } });
+            barChart = new Chart(ctx3, { type: 'bar', data: { labels, datasets: [{ data }] } });
+            //lineChart = new Chart(ctx4, { type: 'line', data: { labels, datasets: [{ data }] } });
+        }
+
+        document.addEventListener("DOMContentLoaded", renderExpenses);
+
+    </script>
+</body>
+</html>

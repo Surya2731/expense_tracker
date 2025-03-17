@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yearly Monthly Expense Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #2563EB, #1E40AF);
+            margin: 0;
+            padding: 20px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: 400px;
+        }
+
+        .back-btn {
+            background: #ff4757;
+            padding: 10px 20px;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="back-btn" onclick="window.history.back()">⬅ Back</button>
+    <h2>Yearly Monthly Expense Report</h2>
+
+    <div class="chart-container">
+        <canvas id="yearlyExpenseChart"></canvas>
+    </div>
+
+    <script>
+        let yearlyChart;
+
+        async function fetchExpenses() {
+            try {
+                const response = await fetch("http://localhost:5000/api/expenses");
+                if (!response.ok) throw new Error("Failed to fetch expenses");
+                const expenses = await response.json();
+                processYearlyExpenses(expenses);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        function processYearlyExpenses(expenses) {
+            let expenseData = {}; // Object to store {year -> {month -> totalAmount}}
+
+            expenses.forEach(exp => {
+                let date = new Date(exp.date);
+                let year = date.getFullYear();
+                let monthIndex = date.getMonth(); // 0 = Jan, 11 = Dec
+
+                if (!expenseData[year]) {
+                    expenseData[year] = new Array(12).fill(0); // Initialize 12 months for the year
+                }
+                expenseData[year][monthIndex] += exp.amount; // Add expense amount to respective month
+            });
+
+            renderYearlyChart(expenseData);
+        }
+
+        function renderYearlyChart(expenseData) {
+            let ctx = document.getElementById("yearlyExpenseChart").getContext("2d");
+
+            if (yearlyChart) yearlyChart.destroy(); // Destroy previous chart if exists
+
+            let years = Object.keys(expenseData).sort(); // Get years in ascending order
+            let datasets = years.map((year, index) => ({
+                label: `${year} Expenses`,
+                data: expenseData[year],
+                backgroundColor: getRandomColor(index),
+                borderColor: getRandomColor(index),
+                borderWidth: 1
+            }));
+
+            yearlyChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function getRandomColor(index) {
+            const colors = ["#FF6384", "#36A2EB", "#FFCE56", "#4CAF50", "#FF9800", "#9C27B0"];
+            return colors[index % colors.length];
+        }
+
+        document.addEventListener("DOMContentLoaded", fetchExpenses);
+    </script>
+
+</body>
+</html>
